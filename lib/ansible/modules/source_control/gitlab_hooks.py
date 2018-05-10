@@ -179,10 +179,6 @@ def _list(module, api_url, project, access_token, private_token):
     path = "/hooks"
     return request(module, api_url, project, path, access_token, private_token)
 
-def _get(module, api_url, project, hook_id, access_token, private_token):
-    path = "/hooks/%s" % str(hook_id)
-    return request(module, api_url, project, path, access_token, private_token)
-    
 def _find(module, api_url, project, hook_url, access_token, private_token):
     success, data = _list(module, api_url, project, access_token, private_token)
     if success:
@@ -205,29 +201,13 @@ def _delete(module, api_url, project, hook_id, access_token, private_token):
     return request(module, api_url, project, path, access_token, private_token, method='DELETE')
 
 def _are_equivalent(input, existing):
-    if not input['url'] == existing['url']:
-        return False
-    if not input['push_events'] == existing['push_events']:
-        return False
-    if not input['issues_events'] == existing['issues_events']:
-        return False
-    if not input['confidential_issues_events'] == existing['confidential_issues_events']:
-        return False
-    if not input['merge_requests_events'] == existing['merge_requests_events']:
-        return False
-    if not input['tag_push_events'] == existing['tag_push_events']:
-        return False
-    if not input['note_events'] == existing['note_events']:
-        return False
-    if not input['job_events'] == existing['job_events']:
-        return False
-    if not input['pipeline_events'] == existing['pipeline_events']:
-        return False
-    if not input['wiki_page_events'] == existing['wiki_page_events']:
-        return False
-    if not input['enable_ssl_verification'] == existing['enable_ssl_verification']:
-        return False
-    return True    
+    for key in [
+        'url', 'push_events', 'issues_events', 'confidential_issues_events', 'merge_requests_events', 
+        'tag_push_events', 'note_events', 'job_events', 'pipeline_events', 'wiki_page_events', 
+        'enable_ssl_verification', 'token' ]:
+        if not input[key] == existing[key]:
+            return False
+    return True
 
 def main():
     module = AnsibleModule(
@@ -258,21 +238,17 @@ def main():
     project = module.params['project']
     state = module.params['state']
 
-    input = {
-        'url': module.params['hookurl'],
-        'push_events': module.params['push_events'],
-        'issues_events': module.params['issues_events'],
-        'confidential_issues_events': module.params['confidential_issues_events'],
-        'merge_requests_events': module.params['merge_requests_events'],
-        'tag_push_events': module.params['tag_push_events'],
-        'note_events': module.params['note_events'],
-        'job_events': module.params['job_events'],
-        'pipeline_events': module.params['pipeline_events'],
-        'wiki_page_events': module.params['wiki_page_events'],
-        'enable_ssl_verification': module.params['enable_ssl_verification'],
-        'token': module.params['token'],
-    }
+    if not access_token and not private_token:
+        module.fail_json(msg="need either access_token or private_token")
 
+    input = {}
+
+    for key in [
+        'url', 'push_events', 'issues_events', 'confidential_issues_events', 'merge_requests_events', 
+        'tag_push_events', 'note_events', 'job_events', 'pipeline_events', 'wiki_page_events', 
+        'enable_ssl_verification', 'token' ]:
+        input[key] = module.params[key]
+    
     success, existing = _find(module, api_url, project, input['hook_url'], access_token, private_token)
     
     if not success:
@@ -282,7 +258,7 @@ def main():
         input['id'] = existing['id']
 
     changed = False
-    success = False
+    success = True
     response = None
 
     if state == 'present':
