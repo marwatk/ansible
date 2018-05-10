@@ -1,0 +1,303 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+# (c) 2018, Marcus Watkins <marwatk@marcuswatkins.net>
+# (c) 2013, Phillip Gentry <phillip@cx.com>
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
+
+ANSIBLE_METADATA = {'metadata_version': '1.1',
+                    'status': ['preview'],
+                    'supported_by': 'community'}
+
+
+DOCUMENTATION = '''
+---
+module: gitlab_hooks
+short_description: Manages GitLab project hooks.
+description:
+     - Adds, updates and removes project hooks
+version_added: "2.6"
+options:
+  api_url:
+    description:
+      - GitLab API url, example: https://gitlab.example.com/api
+    required: true
+  access_token:
+    description:
+      - The oauth key provided by GitLab. One of access_token or private_token is required. See https://docs.gitlab.com/ee/api/oauth2.html
+    required: false
+  private_token:
+    description:
+      - Personal access token to use. One of private_token or access_token is required. See https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html
+    required: false
+  project:
+    description:
+      - Numeric project id or name of project in the form of group/name
+    required: true
+  hookurl:
+    description:
+      - The url that you want GitLab to post to, this is used as the primary key for updates and deletion.
+    required: false
+  state:
+    description:
+      - When C(present) the hook will be updated to match the input or created if it doesn't exist. When C(absent) it will be deleted if it exists.
+    required: true
+    default: present
+    choices: [ "present", "absent" ]
+  push_events:
+    description:
+      - Trigger hook on push events
+    type: bool
+    default: 'no'
+  issues_events:
+    description:
+      - Trigger hook on issues events
+    type: bool
+    default: 'no'
+  confidential_issues_events:
+    description:
+      - Trigger hook on confidential issues events
+    type: bool
+    default: 'no'
+  merge_requests_events:
+    description:
+      - Trigger hook on merge requests events
+    type: bool
+    default: 'no'
+  tag_push_events:
+    description:
+      - Trigger hook on tag push events
+    type: bool
+    default: 'no'
+  note_events:
+    description:
+      - Trigger hook on note events
+    type: bool
+    default: 'no'
+  job_events:
+    description:
+      - Trigger hook on job events
+    type: bool
+    default: 'no'
+  pipeline_events:
+    description:
+      - Trigger hook on pipeline events
+    type: bool
+    default: 'no'
+  wiki_page_events:
+    description:
+      - Trigger hook on wiki events
+    type: bool
+    default: 'no'
+  enable_ssl_verification:
+    description:
+      - Whether GitLab will do SSL verification when triggering the hook
+    type: bool
+    default: 'no'
+  token:
+    description:
+      - Secret token to validate hook messages at the receiver. 
+      - If this is present it will always result in a change as it cannot be retrieved from GitLab.
+      - Will show up in the X-Gitlab-Token HTTP request header
+    required: false
+author: "Marcus Watkins (@marwatk)"
+'''
+
+EXAMPLES = '''
+# Example creating a new project hook
+- gitlab_hooks:
+    api_url: https://gitlab.example.com/api
+    access_token: "{{ access_token }}"
+    project: "my_group/my_project"
+    hookurl: "https://my-ci-server.example.com/gitlab-hook"
+    state: present
+    push_events: yes
+    enable_ssl_verification: no
+    token: "my-super-secret-token-that-my-ci-server-will-check"
+
+# Update the above hook to add tag pushes
+- gitlab_hooks:
+    api_url: https://gitlab.example.com/api
+    access_token: "{{ access_token }}"
+    project: "my_group/my_project"
+    hookurl: "https://my-ci-server.example.com/gitlab-hook"
+    state: present
+    push_events: yes
+    tag_push_events: yes
+    enable_ssl_verification: no
+    token: "my-super-secret-token-that-my-ci-server-will-check"
+
+# Delete the previous hook
+- gitlab_hooks:
+    api_url: https://gitlab.example.com/api
+    access_token: "{{ access_token }}"
+    project: "my_group/my_project"
+    hookurl: "https://my-ci-server.example.com/gitlab-hook"
+    state: absent
+
+# Delete a hook by numeric project id
+- gitlab_hooks:
+    api_url: https://gitlab.example.com/api
+    access_token: "{{ access_token }}"
+    project: 10
+    hookurl: "https://my-ci-server.example.com/gitlab-hook"
+    state: absent
+'''
+
+import json
+
+from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.urls import fetch_url
+
+try:
+    from urllib import quote_plus  # Python 2.X
+except ImportError:
+    from urllib.parse import quote_plus  # Python 3+
+
+def request(module, api_url, project, path, access_token, private_token, rawdata='', method='GET'):
+    url = "%s/v4/projects/%s%s" % (api_url, quote_plus(project), path)
+    headers = {}
+    if access_token:
+        headers['Authorization'] = "Bearer %s" % access_token
+    else:
+        headers['Private-Token'] = private_token
+
+    headers['Accept'] = "application/json"
+    headers['Content-Type'] = "application/json"
+    
+    response, info = fetch_url(module, url, headers=headers, data=rawdata, method=method)
+    if info['status'] != 200:
+        return False, response.read()
+    else:
+        return True, json.loads(response.read())
+
+def _list(module, api_url, project, access_token, private_token):
+    path = "/hooks"
+    return request(module, api_url, project, path, access_token, private_token)
+
+def _get(module, api_url, project, hook_id, access_token, private_token):
+    path = "/hooks/%s" % str(hook_id)
+    return request(module, api_url, project, path, access_token, private_token)
+    
+def _find(module, api_url, project, hook_url, access_token, private_token):
+    success, data = _list(module, api_url, project, access_token, private_token)
+    if success:
+        for i in data:
+            if i["url"] == hook_url:
+                return success, i
+        return success, None
+    return success, data
+
+def _publish(module, api_url, project, data, access_token, private_token):
+    path = "/hooks"
+    method = "POST"
+    if data["id"]:
+        path += "%s" % str(data["id"])
+        method = "PUT"
+    return request(module, api_url, project, path, access_token, private_token, json.dumps(data), method)
+
+def _delete(module, api_url, project, hook_id, access_token, private_token):
+    path = "/hooks/%s" % str(hook_id)
+    return request(module, api_url, project, path, access_token, private_token, method='DELETE')
+
+def _are_equivalent(input, existing):
+    if not input['url'] == existing['url']:
+        return False
+    if not input['push_events'] == existing['push_events']:
+        return False
+    if not input['issues_events'] == existing['issues_events']:
+        return False
+    if not input['confidential_issues_events'] == existing['confidential_issues_events']:
+        return False
+    if not input['merge_requests_events'] == existing['merge_requests_events']:
+        return False
+    if not input['tag_push_events'] == existing['tag_push_events']:
+        return False
+    if not input['note_events'] == existing['note_events']:
+        return False
+    if not input['job_events'] == existing['job_events']:
+        return False
+    if not input['pipeline_events'] == existing['pipeline_events']:
+        return False
+    if not input['wiki_page_events'] == existing['wiki_page_events']:
+        return False
+    if not input['enable_ssl_verification'] == existing['enable_ssl_verification']:
+        return False
+    return True    
+
+def main():
+    module = AnsibleModule(
+        argument_spec=dict(
+            api_url=dict(required=True),
+            access_token=dict(required=False, no_log=True),
+            private_token=dict(required=False, no_log=True),
+            project=dict(required=True),
+            hookurl=dict(required=True),
+            state=dict(default='present', choices=['present', 'absent']),
+            push_events=dict(default='no', type='bool'),
+            issues_events=dict(default='no', type='bool'),
+            confidential_issues_events=dict(default='no', type='bool'),
+            merge_requests_events=dict(default='no', type='bool'),
+            tag_push_events=dict(default='no', type='bool'),
+            note_events=dict(default='no', type='bool'),
+            job_events=dict(default='no', type='bool'),
+            pipeline_events=dict(default='no', type='bool'),
+            wiki_page_events=dict(default='no', type='bool'),
+            enable_ssl_verification=dict(default='no', type='bool'),
+            token=dict(required=False, no_log=True),
+        )
+    )
+
+    api_url = module.params['api_url']
+    access_token = module.params['access_token']
+    private_token = module.params['private_token']
+    project = module.params['project']
+    state = module.params['state']
+
+    input = {
+        'url': module.params['hookurl'],
+        'push_events': module.params['push_events'],
+        'issues_events': module.params['issues_events'],
+        'confidential_issues_events': module.params['confidential_issues_events'],
+        'merge_requests_events': module.params['merge_requests_events'],
+        'tag_push_events': module.params['tag_push_events'],
+        'note_events': module.params['note_events'],
+        'job_events': module.params['job_events'],
+        'pipeline_events': module.params['pipeline_events'],
+        'wiki_page_events': module.params['wiki_page_events'],
+        'enable_ssl_verification': module.params['enable_ssl_verification'],
+        'token': module.params['token'],
+    }
+
+    success, existing = _find(module, api_url, project, input['hook_url'], access_token, private_token)
+    
+    if not success:
+        module.fail_json(msg="failed to list hooks", result=existing)
+    
+    if existing['id']:
+        input['id'] = existing['id']
+
+    changed = False
+    success = False
+    response = None
+
+    if state == 'present':
+        if not existing['id'] or input['token'] or not _are_equivalent(existing, input):
+            success, response = _publish(module, api_url, project, input, access_token, private_token)
+            changed = True
+    else:
+        if existing['id']:
+            success, response = _delete(module, api_url, project, existing['id'], access_token, private_token)
+            changed = True
+
+    if success:
+        module.exit_json(changed=changed, msg='Success', result=response)
+    else:
+        module.fail_json(msg='Failure', result=response)
+
+if __name__ == '__main__':
+    main()
