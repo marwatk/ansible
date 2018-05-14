@@ -42,7 +42,7 @@ options:
   title:
     description:
       - Deploy key's title
-    required: false
+    required: true
   key:
     description:
       - Deploy key
@@ -116,10 +116,16 @@ def request(module, api_url, project, path, access_token, private_token, rawdata
     headers['Content-Type'] = "application/json"
 
     response, info = fetch_url(module=module, url=url, headers=headers, data=rawdata, method=method)
-    if info['status'] != 200:
-        return False, response.read()
+    status = info['status']
+    content = ""
+    if response:
+        content = response.read()
+    if status == 204:
+        return True, content
+    elif status == 200 or status == 201:
+        return True, json.loads(content)
     else:
-        return True, json.loads(response.read())
+        return False, str(status) + ": " + content
 
 
 def _list(module, api_url, project, access_token, private_token):
@@ -174,7 +180,7 @@ def main():
             key=dict(required=True),
             state=dict(default='present', choices=['present', 'absent']),
             can_push=dict(default='no', type='bool'),
-            title=dict(required=False),
+            title=dict(required=True),
         )
     )
 
@@ -214,7 +220,7 @@ def main():
             changed = True
 
     if success:
-        module.exit_json(changed=changed, msg='Success', result=response)
+        module.exit_json(changed=changed, msg='Success', result=response, previous_version=existing)
     else:
         module.fail_json(msg='Failure', result=response)
 

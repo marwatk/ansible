@@ -59,11 +59,6 @@ options:
       - Trigger hook on issues events
     type: bool
     default: 'no'
-  confidential_issues_events:
-    description:
-      - Trigger hook on confidential issues events
-    type: bool
-    default: 'no'
   merge_requests_events:
     description:
       - Trigger hook on merge requests events
@@ -173,10 +168,16 @@ def request(module, api_url, project, path, access_token, private_token, rawdata
     headers['Content-Type'] = "application/json"
 
     response, info = fetch_url(module=module, url=url, headers=headers, data=rawdata, method=method)
-    if info['status'] != 200:
-        return False, response.read()
+    status = info['status']
+    content = ""
+    if response:
+        content = response.read()
+    if status == 204:
+        return True, content
+    elif status == 200 or status == 201:
+        return True, json.loads(content)
     else:
-        return True, json.loads(response.read())
+        return False, str(status) + ": " + content
 
 
 def _list(module, api_url, project, access_token, private_token):
@@ -212,7 +213,7 @@ def _delete(module, api_url, project, hook_id, access_token, private_token):
 
 def _are_equivalent(input, existing):
     for key in [
-            'url', 'push_events', 'issues_events', 'confidential_issues_events', 'merge_requests_events',
+            'url', 'push_events', 'issues_events', 'merge_requests_events',
             'tag_push_events', 'note_events', 'job_events', 'pipeline_events', 'wiki_page_events',
             'enable_ssl_verification']:
         if key in input and key not in existing:
@@ -235,7 +236,6 @@ def main():
             state=dict(default='present', choices=['present', 'absent']),
             push_events=dict(default='yes', type='bool'),
             issues_events=dict(default='no', type='bool'),
-            confidential_issues_events=dict(default='no', type='bool'),
             merge_requests_events=dict(default='no', type='bool'),
             tag_push_events=dict(default='no', type='bool'),
             note_events=dict(default='no', type='bool'),
@@ -259,7 +259,7 @@ def main():
     input = {'url': module.params['hook_url']}
 
     for key in [
-            'push_events', 'issues_events', 'confidential_issues_events', 'merge_requests_events',
+            'push_events', 'issues_events', 'merge_requests_events',
             'tag_push_events', 'note_events', 'job_events', 'pipeline_events', 'wiki_page_events',
             'enable_ssl_verification', 'token']:
         input[key] = module.params[key]
@@ -286,7 +286,7 @@ def main():
             changed = True
 
     if success:
-        module.exit_json(changed=changed, msg='Success', result=response)
+        module.exit_json(changed=changed, msg='Success', result=response, previous_version=existing)
     else:
         module.fail_json(msg='Failure', result=response)
 
