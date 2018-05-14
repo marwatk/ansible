@@ -77,6 +77,7 @@ def test_access_token_output(capfd, fetch_url_mock, module_mock):
         'access_token': 'test-access-token',
         'project': '10',
         'key': 'ssh-key foobar',
+        'title': 'a title',
         'state': 'absent'
     })
     with pytest.raises(AnsibleExitJson) as result:
@@ -96,6 +97,7 @@ def test_private_token_output(capfd, fetch_url_mock, module_mock):
         'private_token': 'test-private-token',
         'project': 'foo/bar',
         'key': 'ssh-key foobar',
+        'title': 'a title',
         'state': 'absent'
     })
     with pytest.raises(AnsibleExitJson) as result:
@@ -115,6 +117,7 @@ def test_bad_http_first_response(capfd, fetch_url_mock, module_mock):
         'access_token': 'test-access-token',
         'project': '10',
         'key': 'ssh-key foobar',
+        'title': 'a title',
         'state': 'absent'
     })
     with pytest.raises(AnsibleFailJson):
@@ -128,6 +131,7 @@ def test_bad_http_second_response(capfd, fetch_url_mock, module_mock):
         'access_token': 'test-access-token',
         'project': '10',
         'key': 'ssh-key foobar',
+        'title': 'a title',
         'state': 'present'
     })
     with pytest.raises(AnsibleFailJson):
@@ -141,6 +145,7 @@ def test_delete_non_existing(capfd, fetch_url_mock, module_mock):
         'access_token': 'test-access-token',
         'project': '10',
         'key': 'ssh-key foobar',
+        'title': 'a title',
         'state': 'absent'
     })
     with pytest.raises(AnsibleExitJson) as result:
@@ -156,6 +161,7 @@ def test_delete_existing(capfd, fetch_url_mock, module_mock):
         'access_token': 'test-access-token',
         'project': '10',
         'key': 'ssh-rsa long/+base64//+string==',
+        'title': 'a title',
         'state': 'absent'
     })
     with pytest.raises(AnsibleExitJson) as result:
@@ -176,6 +182,7 @@ def test_add_new(capfd, fetch_url_mock, module_mock):
         'access_token': 'test-access-token',
         'project': '10',
         'key': 'ssh-key foobar',
+        'title': 'a title',
         'state': 'present'
     })
     with pytest.raises(AnsibleExitJson) as result:
@@ -185,7 +192,7 @@ def test_add_new(capfd, fetch_url_mock, module_mock):
 
     assert second_call['url'] == 'https://gitlab.example.com/api/v4/projects/10/deploy_keys'
     assert second_call['method'] == 'POST'
-    assert second_call['data'] == '{"can_push": false, "key": "ssh-key foobar", "title": null}'
+    assert second_call['data'] == '{"can_push": false, "key": "ssh-key foobar", "title": "a title"}'
     assert result.value.args[0]['changed'] is True
 
 

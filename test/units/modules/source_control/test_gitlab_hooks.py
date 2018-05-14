@@ -17,7 +17,6 @@ fake_server_state = [
         "project_id": 10,
         "push_events": True,
         "issues_events": True,
-        "confidential_issues_events": False,
         "merge_requests_events": True,
         "tag_push_events": True,
         "note_events": True,
@@ -194,7 +193,7 @@ def test_add_new(capfd, fetch_url_mock, module_mock):
 
     assert second_call['url'] == 'https://gitlab.example.com/api/v4/projects/10/hooks'
     assert second_call['method'] == 'POST'
-    assert second_call['data'] == ('{"confidential_issues_events": false, "enable_ssl_verification": false, "issues_events": false, "job_events": false, '
+    assert second_call['data'] == ('{"enable_ssl_verification": false, "issues_events": false, "job_events": false, '
                                    '"merge_requests_events": false, "note_events": false, "pipeline_events": false, "push_events": true, "tag_push_events": '
                                    'false, "token": null, "url": "https://my-ci-server.example.com/gitlab-hook", "wiki_page_events": false}')
     assert result.value.args[0]['changed'] is True
@@ -209,13 +208,12 @@ def test_update_existing(capfd, fetch_url_mock, module_mock):
         'hook_url': 'https://notification-server.example.com/gitlab-hook',
         'push_events': 'yes',
         'issues_events': 'yes',
-        'confidential_issues_events': 'yes',
         'merge_requests_events': 'yes',
         'tag_push_events': 'yes',
         'note_events': 'yes',
         'job_events': 'yes',
         'pipeline_events': 'yes',
-        'wiki_page_events': 'yes',
+        'wiki_page_events': 'no',
         'enable_ssl_verification': 'yes',
         'state': 'present'
     })
@@ -226,9 +224,9 @@ def test_update_existing(capfd, fetch_url_mock, module_mock):
 
     assert second_call['url'] == 'https://gitlab.example.com/api/v4/projects/10/hooks/1'
     assert second_call['method'] == 'PUT'
-    assert second_call['data'] == ('{"confidential_issues_events": true, "enable_ssl_verification": true, "issues_events": true, "job_events": true, '
+    assert second_call['data'] == ('{"enable_ssl_verification": true, "issues_events": true, "job_events": true, '
                                    '"merge_requests_events": true, "note_events": true, "pipeline_events": true, "push_events": true, "tag_push_events": '
-                                   'true, "token": null, "url": "https://notification-server.example.com/gitlab-hook", "wiki_page_events": true}')
+                                   'true, "token": null, "url": "https://notification-server.example.com/gitlab-hook", "wiki_page_events": false}')
     assert result.value.args[0]['changed'] is True
 
 
@@ -241,7 +239,6 @@ def test_unchanged_existing(capfd, fetch_url_mock, module_mock):
         'hook_url': 'https://notification-server.example.com/gitlab-hook',
         'push_events': 'yes',
         'issues_events': 'yes',
-        'confidential_issues_events': 'no',
         'merge_requests_events': 'yes',
         'tag_push_events': 'yes',
         'note_events': 'yes',
@@ -267,7 +264,6 @@ def test_unchanged_existing_with_token(capfd, fetch_url_mock, module_mock):
         'hook_url': 'https://notification-server.example.com/gitlab-hook',
         'push_events': 'yes',
         'issues_events': 'yes',
-        'confidential_issues_events': 'no',
         'merge_requests_events': 'yes',
         'tag_push_events': 'yes',
         'note_events': 'yes',
@@ -285,7 +281,7 @@ def test_unchanged_existing_with_token(capfd, fetch_url_mock, module_mock):
 
     assert second_call['url'] == 'https://gitlab.example.com/api/v4/projects/10/hooks/1'
     assert second_call['method'] == 'PUT'
-    assert second_call['data'] == ('{"confidential_issues_events": false, "enable_ssl_verification": true, "issues_events": true, "job_events": true, '
+    assert second_call['data'] == ('{"enable_ssl_verification": true, "issues_events": true, "job_events": true, '
                                    '"merge_requests_events": true, "note_events": true, "pipeline_events": true, "push_events": true, '
                                    '"tag_push_events": true, "token": "secret-token", "url": "https://notification-server.example.com/gitlab-hook", '
                                    '"wiki_page_events": true}')
