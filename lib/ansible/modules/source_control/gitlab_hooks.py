@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # (c) 2018, Marcus Watkins <marwatk@marcuswatkins.net>
+# Based on code:
 # (c) 2013, Phillip Gentry <phillip@cx.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
@@ -41,7 +42,7 @@ options:
   hook_url:
     description:
       - The url that you want GitLab to post to, this is used as the primary key for updates and deletion.
-    required: false
+    required: true
   state:
     description:
       - When C(present) the hook will be updated to match the input or created if it doesn't exist. When C(absent) it will be deleted if it exists.
