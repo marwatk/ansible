@@ -38,7 +38,7 @@ options:
     description:
       - Numeric project id or name of project in the form of group/name
     required: true
-  hookurl:
+  hook_url:
     description:
       - The url that you want GitLab to post to, this is used as the primary key for updates and deletion.
     required: false
@@ -100,7 +100,7 @@ options:
     default: 'no'
   token:
     description:
-      - Secret token to validate hook messages at the receiver. 
+      - Secret token to validate hook messages at the receiver.
       - If this is present it will always result in a change as it cannot be retrieved from GitLab.
       - Will show up in the X-Gitlab-Token HTTP request header
     required: false
@@ -113,7 +113,7 @@ EXAMPLES = '''
     api_url: https://gitlab.example.com/api
     access_token: "{{ access_token }}"
     project: "my_group/my_project"
-    hookurl: "https://my-ci-server.example.com/gitlab-hook"
+    hook_url: "https://my-ci-server.example.com/gitlab-hook"
     state: present
     push_events: yes
     enable_ssl_verification: no
@@ -124,7 +124,7 @@ EXAMPLES = '''
     api_url: https://gitlab.example.com/api
     access_token: "{{ access_token }}"
     project: "my_group/my_project"
-    hookurl: "https://my-ci-server.example.com/gitlab-hook"
+    hook_url: "https://my-ci-server.example.com/gitlab-hook"
     state: present
     push_events: yes
     tag_push_events: yes
@@ -136,7 +136,7 @@ EXAMPLES = '''
     api_url: https://gitlab.example.com/api
     access_token: "{{ access_token }}"
     project: "my_group/my_project"
-    hookurl: "https://my-ci-server.example.com/gitlab-hook"
+    hook_url: "https://my-ci-server.example.com/gitlab-hook"
     state: absent
 
 # Delete a hook by numeric project id
@@ -144,7 +144,7 @@ EXAMPLES = '''
     api_url: https://gitlab.example.com/api
     access_token: "{{ access_token }}"
     project: 10
-    hookurl: "https://my-ci-server.example.com/gitlab-hook"
+    hook_url: "https://my-ci-server.example.com/gitlab-hook"
     state: absent
 '''
 
@@ -152,11 +152,13 @@ import json
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.urls import fetch_url
+from copy import deepcopy
 
 try:
     from urllib import quote_plus  # Python 2.X
 except ImportError:
     from urllib.parse import quote_plus  # Python 3+
+
 
 def request(module, api_url, project, path, access_token, private_token, rawdata='', method='GET'):
     url = "%s/v4/projects/%s%s" % (api_url, quote_plus(project), path)
@@ -168,16 +170,18 @@ def request(module, api_url, project, path, access_token, private_token, rawdata
 
     headers['Accept'] = "application/json"
     headers['Content-Type'] = "application/json"
-    
-    response, info = fetch_url(module, url, headers=headers, data=rawdata, method=method)
+
+    response, info = fetch_url(module=module, url=url, headers=headers, data=rawdata, method=method)
     if info['status'] != 200:
         return False, response.read()
     else:
         return True, json.loads(response.read())
 
+
 def _list(module, api_url, project, access_token, private_token):
     path = "/hooks"
     return request(module, api_url, project, path, access_token, private_token)
+
 
 def _find(module, api_url, project, hook_url, access_token, private_token):
     success, data = _list(module, api_url, project, access_token, private_token)
@@ -188,26 +192,36 @@ def _find(module, api_url, project, hook_url, access_token, private_token):
         return success, None
     return success, data
 
+
 def _publish(module, api_url, project, data, access_token, private_token):
     path = "/hooks"
     method = "POST"
-    if data["id"]:
-        path += "%s" % str(data["id"])
+    if 'id' in data:
+        path += "/%s" % str(data["id"])
         method = "PUT"
-    return request(module, api_url, project, path, access_token, private_token, json.dumps(data), method)
+    data = deepcopy(data)
+    data.pop( 'id', None )
+    return request(module, api_url, project, path, access_token, private_token, json.dumps(data, sort_keys=True), method)
+
 
 def _delete(module, api_url, project, hook_id, access_token, private_token):
     path = "/hooks/%s" % str(hook_id)
     return request(module, api_url, project, path, access_token, private_token, method='DELETE')
 
+
 def _are_equivalent(input, existing):
     for key in [
-        'url', 'push_events', 'issues_events', 'confidential_issues_events', 'merge_requests_events', 
-        'tag_push_events', 'note_events', 'job_events', 'pipeline_events', 'wiki_page_events', 
-        'enable_ssl_verification', 'token' ]:
+            'url', 'push_events', 'issues_events', 'confidential_issues_events', 'merge_requests_events',
+            'tag_push_events', 'note_events', 'job_events', 'pipeline_events', 'wiki_page_events',
+            'enable_ssl_verification']:
+        if key in input and key not in existing:
+            return False
+        if key not in input and key in existing:
+            return False
         if not input[key] == existing[key]:
             return False
     return True
+
 
 def main():
     module = AnsibleModule(
@@ -216,9 +230,9 @@ def main():
             access_token=dict(required=False, no_log=True),
             private_token=dict(required=False, no_log=True),
             project=dict(required=True),
-            hookurl=dict(required=True),
+            hook_url=dict(required=True),
             state=dict(default='present', choices=['present', 'absent']),
-            push_events=dict(default='no', type='bool'),
+            push_events=dict(default='yes', type='bool'),
             issues_events=dict(default='no', type='bool'),
             confidential_issues_events=dict(default='no', type='bool'),
             merge_requests_events=dict(default='no', type='bool'),
@@ -241,20 +255,20 @@ def main():
     if not access_token and not private_token:
         module.fail_json(msg="need either access_token or private_token")
 
-    input = {}
+    input = {'url': module.params['hook_url']}
 
     for key in [
-        'url', 'push_events', 'issues_events', 'confidential_issues_events', 'merge_requests_events', 
-        'tag_push_events', 'note_events', 'job_events', 'pipeline_events', 'wiki_page_events', 
-        'enable_ssl_verification', 'token' ]:
+            'push_events', 'issues_events', 'confidential_issues_events', 'merge_requests_events',
+            'tag_push_events', 'note_events', 'job_events', 'pipeline_events', 'wiki_page_events',
+            'enable_ssl_verification', 'token']:
         input[key] = module.params[key]
-    
-    success, existing = _find(module, api_url, project, input['hook_url'], access_token, private_token)
-    
+
+    success, existing = _find(module, api_url, project, input['url'], access_token, private_token)
+
     if not success:
         module.fail_json(msg="failed to list hooks", result=existing)
-    
-    if existing['id']:
+
+    if existing:
         input['id'] = existing['id']
 
     changed = False
@@ -262,11 +276,11 @@ def main():
     response = None
 
     if state == 'present':
-        if not existing['id'] or input['token'] or not _are_equivalent(existing, input):
+        if not existing or input['token'] or not _are_equivalent(existing, input):
             success, response = _publish(module, api_url, project, input, access_token, private_token)
             changed = True
     else:
-        if existing['id']:
+        if existing:
             success, response = _delete(module, api_url, project, existing['id'], access_token, private_token)
             changed = True
 
