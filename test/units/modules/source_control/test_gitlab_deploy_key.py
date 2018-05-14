@@ -227,4 +227,3 @@ def test_unchanged_existing(capfd, fetch_url_mock, module_mock):
 
     assert result.value.args[0]['changed'] is False
     assert fetch_url_mock.call_count == 1
-
