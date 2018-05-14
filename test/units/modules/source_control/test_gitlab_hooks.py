@@ -29,6 +29,7 @@ fake_server_state = [
     },
 ]
 
+
 def set_module_args(args):
     """prepare arguments so that they will be picked up during module creation"""
     args = json.dumps({'ANSIBLE_MODULE_ARGS': args})
@@ -74,8 +75,8 @@ def fetch_url_mock(mocker):
 @pytest.fixture
 def module_mock(mocker):
     return mocker.patch.multiple(basic.AnsibleModule,
-                                exit_json=exit_json,
-                                fail_json=fail_json)
+                                 exit_json=exit_json,
+                                 fail_json=fail_json)
 
 
 def test_access_token_output(capfd, fetch_url_mock, module_mock):
@@ -86,10 +87,10 @@ def test_access_token_output(capfd, fetch_url_mock, module_mock):
         'project': '10',
         'hook_url': 'https://my-ci-server.example.com/gitlab-hook',
         'state': 'absent'
-})
+    })
     with pytest.raises(AnsibleExitJson) as result:
         gitlab_hooks.main()
-    
+
     first_call = fetch_url_mock.call_args_list[0][1]
     assert first_call['url'] == 'https://gitlab.example.com/api/v4/projects/10/hooks'
     assert first_call['headers']['Authorization'] == 'Bearer test-access-token'
@@ -108,7 +109,7 @@ def test_private_token_output(capfd, fetch_url_mock, module_mock):
     })
     with pytest.raises(AnsibleExitJson) as result:
         gitlab_hooks.main()
-    
+
     first_call = fetch_url_mock.call_args_list[0][1]
     assert first_call['url'] == 'https://gitlab.example.com/api/v4/projects/foo%2Fbar/hooks'
     assert first_call['headers']['Private-Token'] == 'test-private-token'
@@ -117,7 +118,7 @@ def test_private_token_output(capfd, fetch_url_mock, module_mock):
 
 
 def test_bad_http_first_response(capfd, fetch_url_mock, module_mock):
-    fetch_url_mock.side_effect = [[FakeReader("Permission denied"), {'status': 403}],[FakeReader("Permission denied"), {'status': 403}]]
+    fetch_url_mock.side_effect = [[FakeReader("Permission denied"), {'status': 403}], [FakeReader("Permission denied"), {'status': 403}]]
     set_module_args({
         'api_url': 'https://gitlab.example.com/api',
         'access_token': 'test-access-token',
@@ -130,7 +131,7 @@ def test_bad_http_first_response(capfd, fetch_url_mock, module_mock):
 
 
 def test_bad_http_second_response(capfd, fetch_url_mock, module_mock):
-    fetch_url_mock.side_effect = [[FakeReader(fake_server_state), {'status': 200}],[FakeReader("Permission denied"), {'status': 403}]]
+    fetch_url_mock.side_effect = [[FakeReader(fake_server_state), {'status': 200}], [FakeReader("Permission denied"), {'status': 403}]]
     set_module_args({
         'api_url': 'https://gitlab.example.com/api',
         'access_token': 'test-access-token',
@@ -153,8 +154,8 @@ def test_delete_non_existing(capfd, fetch_url_mock, module_mock):
     })
     with pytest.raises(AnsibleExitJson) as result:
         gitlab_hooks.main()
-    
-    assert result.value.args[0]['changed'] == False
+
+    assert result.value.args[0]['changed'] is False
 
 
 def test_delete_existing(capfd, fetch_url_mock, module_mock):
@@ -174,7 +175,7 @@ def test_delete_existing(capfd, fetch_url_mock, module_mock):
     assert second_call['url'] == 'https://gitlab.example.com/api/v4/projects/10/hooks/1'
     assert second_call['method'] == 'DELETE'
 
-    assert result.value.args[0]['changed'] == True
+    assert result.value.args[0]['changed'] is True
 
 
 def test_add_new(capfd, fetch_url_mock, module_mock):
@@ -193,8 +194,10 @@ def test_add_new(capfd, fetch_url_mock, module_mock):
 
     assert second_call['url'] == 'https://gitlab.example.com/api/v4/projects/10/hooks'
     assert second_call['method'] == 'POST'
-    assert second_call['data'] == '{"confidential_issues_events": false, "enable_ssl_verification": false, "issues_events": false, "job_events": false, "merge_requests_events": false, "note_events": false, "pipeline_events": false, "push_events": true, "tag_push_events": false, "token": null, "url": "https://my-ci-server.example.com/gitlab-hook", "wiki_page_events": false}'
-    assert result.value.args[0]['changed'] == True
+    assert second_call['data'] == ('{"confidential_issues_events": false, "enable_ssl_verification": false, "issues_events": false, "job_events": false, '
+                                   '"merge_requests_events": false, "note_events": false, "pipeline_events": false, "push_events": true, "tag_push_events": '
+                                   'false, "token": null, "url": "https://my-ci-server.example.com/gitlab-hook", "wiki_page_events": false}')
+    assert result.value.args[0]['changed'] is True
 
 
 def test_update_existing(capfd, fetch_url_mock, module_mock):
@@ -223,8 +226,10 @@ def test_update_existing(capfd, fetch_url_mock, module_mock):
 
     assert second_call['url'] == 'https://gitlab.example.com/api/v4/projects/10/hooks/1'
     assert second_call['method'] == 'PUT'
-    assert second_call['data'] == '{"confidential_issues_events": true, "enable_ssl_verification": true, "issues_events": true, "job_events": true, "merge_requests_events": true, "note_events": true, "pipeline_events": true, "push_events": true, "tag_push_events": true, "token": null, "url": "https://notification-server.example.com/gitlab-hook", "wiki_page_events": true}'
-    assert result.value.args[0]['changed'] == True
+    assert second_call['data'] == ('{"confidential_issues_events": true, "enable_ssl_verification": true, "issues_events": true, "job_events": true, '
+                                   '"merge_requests_events": true, "note_events": true, "pipeline_events": true, "push_events": true, "tag_push_events": '
+                                   'true, "token": null, "url": "https://notification-server.example.com/gitlab-hook", "wiki_page_events": true}')
+    assert result.value.args[0]['changed'] is True
 
 
 def test_unchanged_existing(capfd, fetch_url_mock, module_mock):
@@ -249,7 +254,7 @@ def test_unchanged_existing(capfd, fetch_url_mock, module_mock):
     with pytest.raises(AnsibleExitJson) as result:
         gitlab_hooks.main()
 
-    assert result.value.args[0]['changed'] == False
+    assert result.value.args[0]['changed'] is False
     assert fetch_url_mock.call_count == 1
 
 
@@ -280,5 +285,8 @@ def test_unchanged_existing_with_token(capfd, fetch_url_mock, module_mock):
 
     assert second_call['url'] == 'https://gitlab.example.com/api/v4/projects/10/hooks/1'
     assert second_call['method'] == 'PUT'
-    assert second_call['data'] == '{"confidential_issues_events": false, "enable_ssl_verification": true, "issues_events": true, "job_events": true, "merge_requests_events": true, "note_events": true, "pipeline_events": true, "push_events": true, "tag_push_events": true, "token": "secret-token", "url": "https://notification-server.example.com/gitlab-hook", "wiki_page_events": true}'
-    assert result.value.args[0]['changed'] == True
+    assert second_call['data'] == ('{"confidential_issues_events": false, "enable_ssl_verification": true, "issues_events": true, "job_events": true, '
+                                   '"merge_requests_events": true, "note_events": true, "pipeline_events": true, "push_events": true, '
+                                   '"tag_push_events": true, "token": "secret-token", "url": "https://notification-server.example.com/gitlab-hook", '
+                                   '"wiki_page_events": true}')
+    assert result.value.args[0]['changed'] is True

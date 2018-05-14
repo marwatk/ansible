@@ -200,7 +200,7 @@ def _publish(module, api_url, project, data, access_token, private_token):
         path += "/%s" % str(data["id"])
         method = "PUT"
     data = deepcopy(data)
-    data.pop( 'id', None )
+    data.pop('id', None)
     return request(module, api_url, project, path, access_token, private_token, json.dumps(data, sort_keys=True), method)
 
 
